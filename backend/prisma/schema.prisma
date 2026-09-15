@@ -1,27 +1,12 @@
-// Max Pizza Hub — Backend Data Model
-//
-// Scope: persistent order management + admin dashboard API only.
-// No menu/inventory tables — menu items still live in the frontend.
-// Order items are stored as a snapshot (name/price/veg flag) at order time,
-// so later menu edits never change historical orders.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  // SQLite for MVP simplicity — zero external services to run.
-  // Swap to "postgresql" + a DATABASE_URL when moving to production
-  // without touching any application code.
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// NOTE: SQLite has no native enum type, and Prisma's `enum` keyword isn't
-// supported on the sqlite connector — status/orderType are plain Strings
-// here, constrained to a fixed set of values by the zod schemas in
-// src/validators/ instead of by the DB schema. (If this project ever
-// moves to Postgres, these could become real Prisma enums at that point.)
 model Order {
   id              String      @id @default(cuid())
   orderNumber     String      @unique
@@ -43,14 +28,14 @@ model Order {
 }
 
 model OrderItem {
-  id         String  @id @default(cuid())
-  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId    String
-  name       String
-  quantity   Int
-  unitPrice  Float
-  isVeg      Boolean @default(true)
-  subtotal   Float
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Int
+  unitPrice Float
+  isVeg     Boolean  @default(true)
+  subtotal  Float
 
   @@index([orderId])
 }
@@ -60,4 +45,5 @@ model AdminUser {
   username     String   @unique
   passwordHash String
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
