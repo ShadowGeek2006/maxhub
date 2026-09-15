@@ -1,6 +1,6 @@
 # Max Pizza Hub
 
-Mobile-first React + Vite website for Max Pizza Hub, with WhatsApp-based ordering.
+Mobile-first React + Vite website for Max Pizza Hub, with WhatsApp-based ordering across two branches (Madhuban, Belthara).
 
 ## Stack
 
@@ -8,7 +8,7 @@ Mobile-first React + Vite website for Max Pizza Hub, with WhatsApp-based orderin
 - Tailwind CSS 3
 - Lucide React icons
 - React Context + localStorage for cart state
-- No backend (WhatsApp deep link ordering)
+- No backend (WhatsApp deep-link ordering)
 
 ## Getting started
 
@@ -28,21 +28,20 @@ npm run preview
 
 ```
 src/
-  components/     UI components (Navbar, Hero, Menu, CartDrawer, ...)
+  components/     UI components (Navbar, Hero, Menu, CartDrawer, Gallery, ...)
   context/        CartContext — cart state + localStorage persistence
-  data/           businessData.js (canonical contact/branch info), menuData.js
-  utils/          whatsapp.js — WhatsApp order link builder
+  hooks/          useCart — CartContext consumer hook
+  data/           business.js (canonical branch/contact info), menu.js, offers.js, gallery.js, reviews.js
+  utils/          whatsapp.js — WhatsApp order message builder
 ```
 
 ## Known placeholders — verify before production
 
-See `00_MAX_PIZZA_HUB_OVERVIEW.md` (P0/P1/P2) for the full list. In short:
-
-- Business phone/WhatsApp numbers and address in `src/data/businessData.js` are from the visiting card and are **not yet verified**.
-- Menu prices in `src/data/menuData.js` are `null` (unknown) — do not guess and publish.
-- Images under `public/images/` are placeholder SVGs, not real restaurant photography.
-- Offers and Reviews sections are intentionally empty until real, approved content is provided.
+- Business phone/WhatsApp numbers and exact address wording in `src/data/business.js` are unverified — `sendWhatsAppOrder` deliberately blocks checkout while the number contains `XXXXX`, so orders can't silently go nowhere.
+- `businessConfig.images` (hero/about/CTA) and several menu/gallery images still point at Unsplash stock photos — swap for approved restaurant photography before launch.
+- Offers in `src/data/offers.js` and reviews in `src/data/reviews.js` should be confirmed as real before the site goes live (reviews in particular must not be published as genuine unless they are).
+- JSON-LD structured data in `index.html` carries the same two branch addresses as `business.js` — keep both in sync if either changes.
 
 ## Ownership
 
-See `00_MAX_PIZZA_HUB_OVERVIEW.md` for the no-clash ownership matrix (Sudheer: UI/UX, Vaishnavi: brand/assets, Ayush: backend if needed, Project Lead: frontend engineering/security/QA/deployment).
+See `00_MAX_PIZZA_HUB_OVERVIEW.md` for the no-clash ownership matrix (Sudheer: UI/UX + initial build, Vaishnavi: brand/assets, Ayush: backend if needed, Project Lead: frontend engineering/security/QA/deployment).

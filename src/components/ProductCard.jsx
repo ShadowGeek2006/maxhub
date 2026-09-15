@@ -1,49 +1,98 @@
-import { Plus } from 'lucide-react'
-import { useCart } from '../context/CartContext'
+import React, { useState } from 'react';
+import { Plus, Check } from 'lucide-react';
+import { useCart } from '../hooks/useCart.js';
 
-export default function ProductCard({ product }) {
-  const { addItem } = useCart()
+export default function ProductCard({ item }) {
+  const { addToCart } = useCart();
+  const [justAdded, setJustAdded] = useState(false);
+
+  const handleAdd = () => {
+    addToCart(item);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1200);
+  };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition hover:shadow-md">
-      <img
-        src={product.image}
-        alt={product.name}
-        loading="lazy"
-        className="h-40 w-full object-cover"
-      />
-      <div className="flex flex-1 flex-col p-4">
-        <div className="mb-1 flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-brand-dark">{product.name}</h3>
-          {/* P1 fix: badge now reads product.isVeg instead of always showing "100% VEG" */}
+    <div className="glass-card rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-brand-red/10 group">
+      {/* Image container */}
+      <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-dark-800">
+        <img
+          src={item.image}
+          alt={item.name}
+          loading="lazy"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-transparent opacity-80" />
+
+        {/* Veg/non-veg indicator — P1 fix: reads item.isVeg instead of a
+            hardcoded "100% VEG" label, so a non-veg item is never mislabeled. */}
+        <div
+          className="absolute top-3 left-3 bg-dark-900/80 backdrop-blur-md px-2 py-1 rounded-md border border-white/10 flex items-center space-x-1.5"
+          aria-label={item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
+        >
+          <div
+            className={`w-2.5 h-2.5 rounded-full ring-2 ${
+              item.isVeg ? 'bg-green-500 ring-green-500/20' : 'bg-red-500 ring-red-500/20'
+            }`}
+          />
           <span
-            className={
-              'shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ' +
-              (product.isVeg
-                ? 'border-green-600 text-green-700'
-                : 'border-red-600 text-red-700')
-            }
-            aria-label={product.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
+            className={`text-[10px] font-semibold tracking-wider uppercase ${
+              item.isVeg ? 'text-green-400' : 'text-red-400'
+            }`}
           >
-            {product.isVeg ? 'VEG' : 'NON-VEG'}
+            {item.isVeg ? '100% VEG' : 'NON-VEG'}
           </span>
         </div>
-        <p className="mb-3 flex-1 text-sm text-gray-600">{product.description}</p>
-        <div className="flex items-center justify-between">
-          <span className="font-semibold text-brand-dark">
-            {product.price != null ? `₹${product.price}` : 'Price TBD'}
-          </span>
+
+        {/* Badge */}
+        {item.badge && (
+          <div className="absolute top-3 right-3 bg-brand-red text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg shadow-brand-red/30">
+            {item.badge}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="p-5 flex-1 flex flex-col justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-white group-hover:text-brand-orange transition-colors">
+            {item.name}
+          </h3>
+          <p className="mt-1.5 text-xs sm:text-sm text-gray-400 line-clamp-2 leading-relaxed">
+            {item.description}
+          </p>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
+          <div>
+            <span className="text-xs text-gray-400 block font-medium">Price</span>
+            <span className="text-xl font-extrabold text-white tracking-tight">
+              {item.priceDisplay || `₹${item.price}`}
+            </span>
+          </div>
+
           <button
-            type="button"
-            onClick={() => addItem(product)}
-            className="flex items-center gap-1 rounded-full bg-brand-red px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2"
-            aria-label={`Add ${product.name} to cart`}
+            onClick={handleAdd}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-1.5 transition-all duration-200 active:scale-95 ${
+              justAdded
+                ? "bg-green-600 text-white shadow-lg shadow-green-600/30"
+                : "bg-brand-red hover:bg-red-600 text-white shadow-lg shadow-brand-red/25 hover:shadow-brand-red/40"
+            }`}
           >
-            <Plus size={16} aria-hidden="true" />
-            Add
+            {justAdded ? (
+              <>
+                <Check className="w-4 h-4" />
+                <span>Added!</span>
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                <span>Add to Order</span>
+              </>
+            )}
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }

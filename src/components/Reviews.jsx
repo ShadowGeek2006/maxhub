@@ -1,37 +1,73 @@
-import { Star } from 'lucide-react'
-import SectionHeading from './SectionHeading'
-
-// ⚠️ Placeholder reviews — replace with real, verifiable customer reviews
-// before launch. Never publish fabricated testimonials as genuine.
-const reviews = []
+import React, { useState } from 'react';
+import SectionHeading from './SectionHeading.jsx';
+import { sampleReviews } from '../data/reviews.js';
+import { Star, ChevronLeft, ChevronRight, Quote } from 'lucide-react';
 
 export default function Reviews() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const prevReview = () => {
+    setCurrentIndex((prev) => (prev === 0 ? sampleReviews.length - 1 : prev - 1));
+  };
+
+  const nextReview = () => {
+    setCurrentIndex((prev) => (prev === sampleReviews.length - 1 ? 0 : prev + 1));
+  };
+
+  const current = sampleReviews[currentIndex];
+
   return (
-    <section id="reviews" className="mx-auto max-w-6xl px-4 py-16">
-      <SectionHeading eyebrow="Testimonials" title="What Customers Say" />
-      <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {reviews.length === 0 && (
-          <p className="col-span-full text-center text-gray-500">
-            Real customer reviews will appear here once collected.
-          </p>
-        )}
-        {reviews.map((r, idx) => (
-          <div key={idx} className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <div className="mb-2 flex gap-0.5" aria-label={`${r.rating} out of 5 stars`}>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  size={16}
-                  className={i < r.rating ? 'fill-brand-gold text-brand-gold' : 'text-gray-300'}
-                  aria-hidden="true"
-                />
-              ))}
-            </div>
-            <p className="text-sm text-gray-600">{r.text}</p>
-            <p className="mt-3 text-sm font-semibold text-brand-dark">{r.name}</p>
+    <section id="reviews" className="py-20 bg-dark-900 relative">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <SectionHeading
+          subtitle="Customer Love"
+          title="WHAT OUR CUSTOMERS SAY"
+          description="Illustrative sample reviews from students and families visiting our Madhuban and Belthara counters."
+        />
+
+        <div className="glass-panel p-8 sm:p-12 rounded-3xl relative border border-white/10 shadow-2xl">
+          <Quote className="w-12 h-12 text-brand-red/20 mx-auto mb-4" />
+
+          {/* Stars */}
+          <div className="flex justify-center space-x-1 mb-6 text-brand-orange">
+            {[...Array(current.rating)].map((_, i) => (
+              <Star key={i} className="w-5 h-5 fill-current" />
+            ))}
           </div>
-        ))}
+
+          {/* Comment */}
+          <p className="text-base sm:text-xl font-medium text-gray-200 leading-relaxed italic max-w-2xl mx-auto">
+            "{current.comment}"
+          </p>
+
+          {/* Author */}
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <h4 className="text-base font-bold text-white">{current.author}</h4>
+            <p className="text-xs text-brand-orange font-semibold mt-0.5">
+              {current.role} • {current.branch}
+            </p>
+          </div>
+
+          {/* Navigation Controls */}
+          <div className="mt-8 flex items-center justify-center space-x-4">
+            <button
+              onClick={prevReview}
+              className="p-2.5 rounded-full bg-dark-800 hover:bg-dark-700 text-white border border-white/10 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-xs text-gray-400">
+              {currentIndex + 1} / {sampleReviews.length}
+            </span>
+            <button
+              onClick={nextReview}
+              className="p-2.5 rounded-full bg-dark-800 hover:bg-dark-700 text-white border border-white/10 transition-colors"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       </div>
     </section>
-  )
+  );
 }

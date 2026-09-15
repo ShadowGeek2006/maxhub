@@ -1,167 +1,337 @@
-import { useState } from 'react'
-import { Minus, Plus, Trash2 } from 'lucide-react'
-import { useCart } from '../context/CartContext'
-import { primaryBranch } from '../data/businessData'
-import { buildWhatsAppOrderLink } from '../utils/whatsapp'
-import Modal from './Modal'
+import React, { useEffect, useRef, useState } from 'react';
+import { X, Plus, Minus, Trash2, ShoppingBag, AlertCircle, MessageCircle } from 'lucide-react';
+import { useCart } from '../hooks/useCart.js';
+import { businessConfig } from '../data/business.js';
+import { sendWhatsAppOrder } from '../utils/whatsapp.js';
 
-// P1 decision (documented, not left implicit): phone is REQUIRED at
-// checkout — the order is placed over WhatsApp and the business needs a
-// callback number if the WhatsApp account itself isn't reachable.
 export default function CartDrawer() {
-  const { items, isOpen, setIsOpen, updateQty, removeItem, total, clearCartAndClose } = useCart()
-  const [customer, setCustomer] = useState({ name: '', phone: '', address: '', notes: '' })
-  const [errors, setErrors] = useState({})
+  const { cartItems, isCartOpen, setIsCartOpen, updateQuantity, removeFromCart, clearCart, cartTotal } = useCart();
 
-  function validate() {
-    const next = {}
-    if (!customer.name.trim()) next.name = 'Name is required.'
-    if (!customer.phone.trim()) next.phone = 'Phone number is required.'
-    else if (!/^\d{10}$/.test(customer.phone.trim())) next.phone = 'Enter a valid 10-digit phone number.'
-    setErrors(next)
-    return Object.keys(next).length === 0
-  }
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [branchId, setBranchId] = useState(businessConfig.branches[0]?.id || 'madhuban');
+  const [orderType, setOrderType] = useState('pickup');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
-  function handleCheckout(e) {
-    e.preventDefault()
-    if (items.length === 0) return
-    if (!validate()) return
+  const panelRef = useRef(null);
+  const previouslyFocused = useRef(null);
 
-    const link = buildWhatsAppOrderLink({
-      whatsappNumber: primaryBranch.whatsapp,
-      customer,
-      items,
-      branchName: primaryBranch.name,
-    })
+  // P1 fix: scroll lock + Escape-to-close + focus trap + restore focus on close,
+  // matching the dialog semantics below (role="dialog", aria-modal).
+  useEffect(() => {
+    if (!isCartOpen) return;
 
-    window.open(link, '_blank', 'noopener,noreferrer')
+    previouslyFocused.current = document.activeElement;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
-    // P0 fix: cart clears and drawer closes once the order has been
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        setIsCartOpen(false);
+        return;
+      }
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll(
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    panelRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused.current?.focus?.();
+    };
+  }, [isCartOpen, setIsCartOpen]);
+
+  if (!isCartOpen) return null;
+
+  const handleCheckout = (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    if (!customerName.trim()) {
+      setErrorMessage('Please provide your name.');
+      return;
+    }
+
+    if (orderType === 'delivery' && !address.trim()) {
+      setErrorMessage('Please enter your delivery address.');
+      return;
+    }
+
+    const result = sendWhatsAppOrder({
+      cartItems,
+      cartTotal,
+      customerName,
+      customerPhone,
+      branchId,
+      orderType,
+      address,
+      notes,
+    });
+
+    if (!result.success) {
+      setErrorMessage(result.message);
+      return;
+    }
+
+    // P0 fix: cart clears and drawer closes once the order has actually been
     // handed off to WhatsApp, instead of leaving stale items behind.
-    clearCartAndClose()
-    setCustomer({ name: '', phone: '', address: '', notes: '' })
-  }
+    clearCart();
+    setIsCartOpen(false);
+    setCustomerName('');
+    setCustomerPhone('');
+    setOrderType('pickup');
+    setAddress('');
+    setNotes('');
+  };
 
   return (
-    <Modal open={isOpen} onClose={() => setIsOpen(false)} title="Your Cart" side>
-      {items.length === 0 ? (
-        <p className="text-gray-500">Your cart is empty.</p>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <ul className="flex flex-col gap-3">
-            {items.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                <div>
-                  <p className="font-medium text-brand-dark">{item.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {item.price != null ? `₹${item.price} each` : 'Price TBD'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => updateQty(item.id, item.qty - 1)}
-                    className="rounded-full border border-gray-200 p-1 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-red"
-                    aria-label={`Decrease quantity of ${item.name}`}
-                  >
-                    <Minus size={14} aria-hidden="true" />
-                  </button>
-                  <span aria-live="polite" className="w-6 text-center text-sm">{item.qty}</span>
-                  <button
-                    type="button"
-                    onClick={() => updateQty(item.id, item.qty + 1)}
-                    className="rounded-full border border-gray-200 p-1 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-red"
-                    aria-label={`Increase quantity of ${item.name}`}
-                  >
-                    <Plus size={14} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeItem(item.id)}
-                    className="rounded-full p-1 text-gray-400 hover:bg-red-50 hover:text-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red"
-                    aria-label={`Remove ${item.name} from cart`}
-                  >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+    <div className="fixed inset-0 z-50 overflow-hidden">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+        onClick={() => setIsCartOpen(false)}
+        aria-hidden="true"
+      />
 
-          <p className="text-right font-semibold text-brand-dark">Total: ₹{total}</p>
-
-          <form onSubmit={handleCheckout} className="flex flex-col gap-3" noValidate>
-            <div>
-              <label htmlFor="cust-name" className="mb-1 block text-sm font-medium text-gray-700">
-                Name
-              </label>
-              <input
-                id="cust-name"
-                type="text"
-                value={customer.name}
-                onChange={(e) => setCustomer((c) => ({ ...c, name: e.target.value }))}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red"
-                aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? 'cust-name-error' : undefined}
-              />
-              {errors.name && (
-                <p id="cust-name-error" className="mt-1 text-xs text-red-600">{errors.name}</p>
-              )}
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cart-drawer-title"
+          tabIndex={-1}
+          className="w-screen max-w-md bg-dark-900 border-l border-white/10 shadow-2xl flex flex-col outline-none"
+        >
+          {/* Header */}
+          <div className="p-5 border-b border-white/10 flex items-center justify-between bg-dark-950">
+            <div className="flex items-center space-x-2">
+              <ShoppingBag className="w-5 h-5 text-brand-orange" aria-hidden="true" />
+              <h2 id="cart-drawer-title" className="text-lg font-bold text-white">Your Pizza Order</h2>
             </div>
-
-            <div>
-              <label htmlFor="cust-phone" className="mb-1 block text-sm font-medium text-gray-700">
-                Phone
-              </label>
-              <input
-                id="cust-phone"
-                type="tel"
-                value={customer.phone}
-                onChange={(e) => setCustomer((c) => ({ ...c, phone: e.target.value }))}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red"
-                aria-invalid={!!errors.phone}
-                aria-describedby={errors.phone ? 'cust-phone-error' : undefined}
-              />
-              {errors.phone && (
-                <p id="cust-phone-error" className="mt-1 text-xs text-red-600">{errors.phone}</p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="cust-address" className="mb-1 block text-sm font-medium text-gray-700">
-                Delivery address (optional)
-              </label>
-              <textarea
-                id="cust-address"
-                rows={2}
-                value={customer.address}
-                onChange={(e) => setCustomer((c) => ({ ...c, address: e.target.value }))}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="cust-notes" className="mb-1 block text-sm font-medium text-gray-700">
-                Notes (optional)
-              </label>
-              <input
-                id="cust-notes"
-                type="text"
-                value={customer.notes}
-                onChange={(e) => setCustomer((c) => ({ ...c, notes: e.target.value }))}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red"
-              />
-            </div>
-
             <button
-              type="submit"
-              className="mt-2 rounded-full bg-brand-red px-4 py-2.5 font-semibold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2"
+              onClick={() => setIsCartOpen(false)}
+              aria-label="Close cart"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
             >
-              Order via WhatsApp
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
-          </form>
+          </div>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            {cartItems.length === 0 ? (
+              <div className="text-center py-16">
+                <ShoppingBag className="w-12 h-12 text-gray-600 mx-auto mb-3" aria-hidden="true" />
+                <p className="text-gray-400 font-medium">Your cart is empty</p>
+                <p className="text-xs text-gray-500 mt-1">Add some hot pizzas from the menu!</p>
+              </div>
+            ) : (
+              <>
+                {/* Items List */}
+                <div className="space-y-3">
+                  {cartItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="glass-card p-3 rounded-xl flex items-center justify-between"
+                    >
+                      <div className="flex-1 pr-3">
+                        <h4 className="text-sm font-bold text-white line-clamp-1">{item.name}</h4>
+                        <span className="text-xs text-brand-orange font-semibold">₹{item.price} each</span>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center bg-dark-800 rounded-lg p-1 border border-white/5">
+                          <button
+                            onClick={() => updateQuantity(item.id, -1)}
+                            aria-label={`Decrease quantity of ${item.name}`}
+                            className="p-1 rounded text-gray-400 hover:text-white transition-colors"
+                          >
+                            <Minus className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                          <span className="px-2 text-xs font-bold text-white" aria-live="polite">{item.quantity}</span>
+                          <button
+                            onClick={() => updateQuantity(item.id, 1)}
+                            aria-label={`Increase quantity of ${item.name}`}
+                            className="p-1 rounded text-gray-400 hover:text-white transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => removeFromCart(item.id)}
+                          aria-label={`Remove ${item.name} from cart`}
+                          className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="text-right">
+                    <button
+                      onClick={clearCart}
+                      className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                    >
+                      Clear All Items
+                    </button>
+                  </div>
+                </div>
+
+                {/* Checkout Details */}
+                <form onSubmit={handleCheckout} className="space-y-4 pt-4 border-t border-white/10" noValidate>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-brand-orange">
+                    Order Information
+                  </h3>
+
+                  {errorMessage && (
+                    <div role="alert" className="p-3 rounded-lg bg-red-900/30 border border-red-500/40 text-red-200 text-xs flex items-start space-x-2">
+                      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                      <span>{errorMessage}</span>
+                    </div>
+                  )}
+
+                  {/* Branch Selection */}
+                  <div>
+                    <label htmlFor="cart-branch" className="block text-xs font-semibold text-gray-300 mb-1">Select Branch</label>
+                    <select
+                      id="cart-branch"
+                      value={branchId}
+                      onChange={(e) => setBranchId(e.target.value)}
+                      className="w-full bg-dark-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-red"
+                    >
+                      {businessConfig.branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Order Type */}
+                  <div>
+                    <span className="block text-xs font-semibold text-gray-300 mb-1" id="order-type-label">Order Type</span>
+                    <div className="grid grid-cols-2 gap-2" role="group" aria-labelledby="order-type-label">
+                      <button
+                        type="button"
+                        onClick={() => setOrderType('pickup')}
+                        aria-pressed={orderType === 'pickup'}
+                        className={`py-2 text-xs font-bold rounded-lg transition-colors border ${
+                          orderType === 'pickup'
+                            ? "bg-brand-red/20 border-brand-red text-white"
+                            : "bg-dark-800 border-white/5 text-gray-400 hover:bg-dark-700"
+                        }`}
+                      >
+                        Takeaway / Pickup
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderType('delivery')}
+                        aria-pressed={orderType === 'delivery'}
+                        className={`py-2 text-xs font-bold rounded-lg transition-colors border ${
+                          orderType === 'delivery'
+                            ? "bg-brand-red/20 border-brand-red text-white"
+                            : "bg-dark-800 border-white/5 text-gray-400 hover:bg-dark-700"
+                        }`}
+                      >
+                        Home Delivery
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Name & Phone */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label htmlFor="cart-name" className="block text-xs font-semibold text-gray-300 mb-1">Your Name *</label>
+                      <input
+                        id="cart-name"
+                        type="text"
+                        required
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="John Doe"
+                        className="w-full bg-dark-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-brand-red"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="cart-phone" className="block text-xs font-semibold text-gray-300 mb-1">Phone Number</label>
+                      <input
+                        id="cart-phone"
+                        type="tel"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="9876543210"
+                        className="w-full bg-dark-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-brand-red"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address if Delivery */}
+                  {orderType === 'delivery' && (
+                    <div>
+                      <label htmlFor="cart-address" className="block text-xs font-semibold text-gray-300 mb-1">Delivery Address *</label>
+                      <textarea
+                        id="cart-address"
+                        rows={2}
+                        required
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="House no., street, landmark..."
+                        className="w-full bg-dark-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-brand-red"
+                      />
+                    </div>
+                  )}
+
+                  {/* Special Notes */}
+                  <div>
+                    <label htmlFor="cart-notes" className="block text-xs font-semibold text-gray-300 mb-1">Special Instructions</label>
+                    <input
+                      id="cart-notes"
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Extra oregano, less spicy, etc."
+                      className="w-full bg-dark-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-brand-red"
+                    />
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl text-sm flex items-center justify-center space-x-2 shadow-lg shadow-green-600/30 transition-all active:scale-95"
+                    >
+                      <MessageCircle className="w-5 h-5" aria-hidden="true" />
+                      <span>ORDER ON WHATSAPP (₹{cartTotal})</span>
+                    </button>
+                    <p className="text-[11px] text-gray-500 text-center mt-2">
+                      Direct WhatsApp order — no online gateway fees.
+                    </p>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
         </div>
-      )}
-    </Modal>
-  )
+      </div>
+    </div>
+  );
 }
