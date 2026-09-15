@@ -13,7 +13,7 @@ datasource db {
   // SQLite for MVP simplicity — zero external services to run.
   // Swap to "postgresql" + a DATABASE_URL when moving to production
   // without touching any application code.
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
