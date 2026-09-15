@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+.DS_Store
+.vscode/
+
+# Never commit real environment values (API base URLs, keys) — see .env.example
+.env
+.env.*
+!.env.example

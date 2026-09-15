@@ -1,47 +1,89 @@
-# Max Pizza Hub
+# Max Pizza Hub — Monorepo
 
-Mobile-first React + Vite website for Max Pizza Hub, with WhatsApp-based ordering across two branches (Madhuban, Belthara).
+Two independently deployed services in one repo:
 
-## Stack
+- **`frontend/`** — React + Vite site (public menu/checkout + `/admin` order dashboard). Deploys to **Vercel**.
+- **`backend/`** — Express + Prisma order-management API. Deploys to **Render** (or Railway/Fly — anywhere that runs a persistent Node process + Postgres).
 
-- React 18 + Vite 5
-- Tailwind CSS 3
-- Lucide React icons
-- React Context + localStorage for cart state
-- No backend (WhatsApp deep-link ordering)
+They are deployed as two separate services, not one. Vercel is excellent for the frontend (static build + edge hosting) but isn't a good fit for this backend as built — it's a stateful Express server with a SQL database behind it, which needs a host that keeps a process running and a database that persists across restarts. That's what the Render blueprint below sets up.
 
-## Getting started
+## Deployment order
+
+### 1. Backend → Render
 
 ```bash
+cd backend
+```
+
+Before deploying, switch the database from SQLite (used for local dev) to Postgres for production — this is a one-line change already anticipated in `prisma/schema.prisma`:
+
+```prisma
+datasource db {
+  provider = "postgresql"   // was "sqlite"
+  url      = env("DATABASE_URL")
+}
+```
+
+Then on [render.com](https://render.com): **New → Blueprint**, point it at this repo, and it will read `backend/render.yaml` and provision both the web service and a free Postgres database automatically (JWT_SECRET is auto-generated; you only need to fill in `CORS_ORIGIN` once you know your Vercel URL — see step 3).
+
+Once it's live, create your first admin login by opening a **Shell** on the Render service (Render dashboard → your service → Shell tab) and running:
+
+```bash
+npm run create-admin -- <username> <a-strong-password>
+```
+
+Confirm it's up: `https://<your-render-service>.onrender.com/api/health` should return `{"status":"ok"}`.
+
+### 2. Frontend → Vercel
+
+```bash
+cd frontend
+```
+
+Push to GitHub, import into Vercel (framework auto-detected as Vite). In the Vercel project's **Environment Variables**, set:
+
+```
+VITE_API_BASE_URL = https://<your-render-service>.onrender.com
+```
+
+Deploy.
+
+### 3. Close the loop — CORS
+
+Back on Render, update the backend's `CORS_ORIGIN` env var to your real Vercel domain (e.g. `https://max-pizza-hub.vercel.app`), and redeploy the backend service. Until this is set correctly, the browser will block every request from the deployed frontend to the backend (this is expected — CORS is doing its job).
+
+## Local development
+
+Two terminals:
+
+```bash
+# Terminal 1 — backend
+cd backend
+cp .env.example .env   # edit JWT_SECRET, leave DATABASE_URL as the sqlite default
 npm install
-npm run dev
+npx prisma migrate dev --name init
+npm run create-admin -- admin your-local-password
+npm run dev             # http://localhost:4000
+
+# Terminal 2 — frontend
+cd frontend
+cp .env.example .env    # VITE_API_BASE_URL=http://localhost:4000 (the default)
+npm install
+npm run dev              # http://localhost:5173
 ```
 
-Build for production:
+## What was fixed / verified during integration
 
-```bash
-npm run build
-npm run preview
-```
+**Backend (`backend/`):**
+- `prisma/schema.prisma` had the `Order` model defined **twice** — a working version (plain `String` status/type, matching how SQLite and the rest of the code actually use it) and a second, broken duplicate referencing `OrderStatus`/`OrderType` Prisma enums that were never defined anywhere. This would have failed `prisma generate` outright. Removed the broken duplicate.
+- Couldn't run a live Prisma+SQLite test in this environment (Prisma's engine-binary host is network-blocked here — same restriction the backend's own README already disclosed hitting). What *was* verified here: every source file syntax-checked clean, and the zod validators + order-number generator were executed directly (12/12 checks passed: rejects empty items/negative prices/missing delivery address/invalid statuses, ignores a client-supplied `total`, generates unique correctly-formatted order numbers).
+- Otherwise this backend is solid: server-side price computation (client total never trusted), bcrypt password hashing, generic auth error messages, admin accounts creatable only via server-side CLI (never an HTTP endpoint), rate limiting on login and order creation, `helmet` security headers, explicit CORS allowlist, capped JSON body size, no stack traces leaked to clients.
 
-## Project structure
+**Frontend (`frontend/`):** see `frontend/README.md` for the full list from the earlier integration pass (checkout now creates the backend order before sending the WhatsApp confirmation, `/admin` dashboard, Vite security-patch pin, sessionStorage for the admin token, Vercel security headers).
 
-```
-src/
-  components/     UI components (Navbar, Hero, Menu, CartDrawer, Gallery, ...)
-  context/        CartContext — cart state + localStorage persistence
-  hooks/          useCart — CartContext consumer hook
-  data/           business.js (canonical branch/contact info), menu.js, offers.js, gallery.js, reviews.js
-  utils/          whatsapp.js — WhatsApp order message builder
-```
+## Before this goes fully live
 
-## Known placeholders — verify before production
-
-- Business phone/WhatsApp numbers and exact address wording in `src/data/business.js` are unverified — `sendWhatsAppOrder` deliberately blocks checkout while the number contains `XXXXX`, so orders can't silently go nowhere.
-- `businessConfig.images` (hero/about/CTA) and several menu/gallery images still point at Unsplash stock photos — swap for approved restaurant photography before launch.
-- Offers in `src/data/offers.js` and reviews in `src/data/reviews.js` should be confirmed as real before the site goes live (reviews in particular must not be published as genuine unless they are).
-- JSON-LD structured data in `index.html` carries the same two branch addresses as `business.js` — keep both in sync if either changes.
-
-## Ownership
-
-See `00_MAX_PIZZA_HUB_OVERVIEW.md` for the no-clash ownership matrix (Sudheer: UI/UX + initial build, Vaishnavi: brand/assets, Ayush: backend if needed, Project Lead: frontend engineering/security/QA/deployment).
+- Rotate/replace the sample admin credentials that appeared in plaintext in the original handoff doc (`manager` / `Passw0rd123`) — create a real admin via `npm run create-admin` and never use that sample pair.
+- Confirm real business data (branch phone numbers, address wording, opening hours) in `frontend/src/data/business.js` — still placeholders pending client verification.
+- Swap Unsplash placeholder images for approved restaurant photography.
+- Once deployed, do one real order end-to-end (place an order on the live site → confirm it appears in `/admin` → update its status) before telling the client it's ready.
