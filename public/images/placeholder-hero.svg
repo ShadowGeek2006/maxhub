@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" role="img" aria-label="Hero image placeholder">
+  <rect width="1200" height="600" fill="#1B1B1B"/>
+  <rect x="0" y="0" width="1200" height="600" fill="#D62828" opacity="0.15"/>
+  <text x="600" y="310" text-anchor="middle" font-family="sans-serif" font-size="36" fill="#FFF8F0">Restaurant photo pending</text>
+</svg>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Max Pizza Hub — Pizza, Burgers &amp; More</title>
+    <meta name="description" content="Max Pizza Hub — fresh pizza, burgers, sandwiches and more. Order online via WhatsApp." />
+    <meta property="og:title" content="Max Pizza Hub" />
+    <meta property="og:description" content="Fresh pizza, burgers, sandwiches and more. Order online via WhatsApp." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- ⚠️ Placeholder structured data — phone/address/hours must be verified
+         (see src/data/businessData.js) before this is treated as production fact. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FastFoodRestaurant",
+        "name": "Max Pizza Hub",
+        "servesCuisine": ["Pizza", "Burgers", "Sandwiches"],
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Madhuban, Near Union Bank of India, Uarauli"
+        },
+        "telephone": "+919219034055",
+        "priceRange": "₹₹"
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
